@@ -1,0 +1,176 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оценки за урок</title>
+    <link rel="stylesheet" href="{% static 'tracker/style.css' %}?v=50">
+</head>
+<body>
+    {% if need_login %}
+        <div class="login-screen">
+            <form action="{% url 'login_teacher' %}" method="post" class="modal-box">
+                <h2>Вход для учителя</h2>
+                <p class="muted-text">Введите ваш личный код (например, фамилию или номер кабинета), чтобы уроки с телефона появлялись на ноутбуке:</p>
+                <input type="text" name="teacher_code" placeholder="Например: иванова или 304" class="file-name-input" required autofocus>
+                <button type="submit" class="btn btn-blue">Войти в кабинет</button>
+            </form>
+        </div>
+    {% else %}
+        <header class="topbar">
+            <div class="topbar-actions">
+                <form action="{% url 'import_file' %}" method="post" enctype="multipart/form-data">
+                    <label class="btn btn-blue">
+                        + Импорт МЭШ
+                        <input type="file" name="file" accept=".csv,.xlsx" hidden onchange="this.form.submit()">
+                    </label>
+                </form>
+
+                <a href="{% url 'undo' %}" class="btn btn-ghost {% if not has_history %}disabled{% endif %}">↩ Отменить</a>
+                <a href="{% url 'reset' %}" class="btn btn-ghost {% if not students %}disabled{% endif %}">Сброс баллов</a>
+                <a href="{% url 'clear_class' %}" class="btn btn-red {% if not students %}disabled{% endif %}">Зачистить</a>
+
+                <details class="ee-dropdown">
+                    <summary class="btn btn-ghost {% if ee.enabled %}ee-active{% endif %}">⚙ Пасхалка</summary>
+                    <form action="{% url 'update_ee' %}" method="post" class="ee-panel">
+                        <label class="ee-row">
+                            <input type="checkbox" name="enabled" {% if ee.enabled %}checked{% endif %}>
+                            Включить пасхалку
+                        </label>
+                        <label class="ee-row">
+                            Если оценка ниже:
+                            <input type="number" name="threshold" value="{{ ee.threshold }}" min="2" max="10">
+                        </label>
+                        <input type="text" name="message" value="{{ ee.message }}" placeholder="Сообщение">
+                        <button type="submit" class="btn btn-blue">Сохранить</button>
+                    </form>
+                </details>
+
+                <button type="button" class="btn btn-export {% if not students %}disabled{% endif %}" onclick="document.getElementById('finishModal').classList.remove('hidden')">
+                    ✓ Завершить урок
+                </button>
+
+                <a href="{% url 'logout_teacher' %}" class="btn btn-ghost" title="Сменить код учителя">Код: {{ teacher_code }} ✕</a>
+            </div>
+        </header>
+
+        {% if error %}
+            <div class="alert">{{ error }}</div>
+        {% endif %}
+
+        {% if students %}
+            <main class="grid">
+                {% for s in students %}
+                    <a href="{% url 'add_point' s.id %}" class="card {% if s.touched %}{% if s.points >= 10 %}card-max{% else %}card-active{% endif %}{% endif %}">
+                        <div class="card-info">
+                            <span class="card-num">{{ forloop.counter }}</span>
+                            <span class="card-name">{{ s.name }}</span>
+                            {% if s.note %}
+                                <span class="card-note">{{ s.note }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="card-badge">
+                            <span class="card-grade">{% if s.grade != '' %}{{ s.grade }}{% else %}+1{% endif %}</span>
+                            <span class="card-pts">{{ s.points }}/10</span>
+                        </div>
+                    </a>
+                {% endfor %}
+            </main>
+        {% else %}
+            <div class="dashboard-wrap">
+                <div class="empty-box">
+                    <h2>Готов к новому уроку</h2>
+                    <p>Нажмите <b>«+ Импорт МЭШ»</b>, чтобы загрузить список следующего класса.</p>
+                </div>
+
+                <section class="archive-box">
+                    <div class="archive-header">
+                        <h3>Проведённые уроки за сегодня ({{ today_str }})</h3>
+                        {% if today_lessons %}
+                            <a href="{% url 'export_day_excel' %}" class="btn btn-blue">↓ Скачать все классы в 1 Excel</a>
+                        {% endif %}
+                    </div>
+
+                    {% if today_lessons %}
+                        <div class="archive-list">
+                            {% for lesson in today_lessons %}
+                                <div class="archive-item">
+                                    <div>
+                                        <strong>{{ lesson.title }}</strong>
+                                        <span class="archive-meta"> • {{ lesson.created_at|date:"H:i" }} ({{ lesson.results_json|length }} уч.)</span>
+                                    </div>
+                                    <div class="archive-btns">
+                                        <a href="{% url 'export_saved_lesson' lesson.id %}" class="btn btn-blue">↓ Excel</a>
+                                        <a href="{% url 'delete_saved_lesson' lesson.id %}" class="btn btn-ghost-dark">✕</a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="muted-text">Пока нет завершённых уроков за сегодня. После урока нажмите <b>«✓ Завершить урок»</b> — результаты появятся здесь и на вашем ноутбуке.</p>
+                    {% endif %}
+                </section>
+            </div>
+        {% endif %}
+
+        {% if columns %}
+            <div class="modal">
+                <div class="modal-box">
+                    <h3>Импорт учеников ({{ pending|length }})</h3>
+
+                    <form action="{% url 'select_column' %}" method="post" class="col-picker">
+                        <label>Выберите столбец с ФИО:</label>
+                        <select name="col_idx" onchange="this.form.submit()">
+                            {% for col in columns %}
+                                <option value="{{ col.idx }}" {% if col.idx == selected_col %}selected{% endif %}>
+                                    {{ col.label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </form>
+
+                    <ul class="preview-list">
+                        {% for name in pending %}
+                            <li>{{ name }}</li>
+                        {% empty %}
+                            <li class="muted">В этом столбце не найдены имена. Выберите другой столбец выше.</li>
+                        {% endfor %}
+                    </ul>
+
+                    <div class="modal-footer">
+                        <a href="{% url 'cancel_import' %}" class="btn btn-ghost-dark">Отмена</a>
+                        {% if pending %}
+                            <a href="{% url 'confirm_import' %}" class="btn btn-blue">Загрузить класс</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+        <div id="finishModal" class="modal hidden" onclick="if(event.target === this) this.classList.add('hidden')">
+            <form action="{% url 'finish_lesson' %}" method="post" class="modal-box">
+                <h3>Завершить урок и сохранить</h3>
+                <p class="muted-text">Урок сохранится в архив за сегодня (будет виден с ноутбука), а текущий экран очистится для следующего класса.</p>
+                <div class="col-picker">
+                    <label>Название класса / урока:</label>
+                    <input type="text" name="title" value="{{ default_filename }}" class="file-name-input" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-ghost-dark" onclick="document.getElementById('finishModal').classList.add('hidden')">Отмена</button>
+                    <a href="{% url 'export_excel' %}?filename={{ default_filename }}" class="btn btn-ghost-dark">Просто скачать</a>
+                    <button type="submit" class="btn btn-blue">Сохранить и очистить</button>
+                </div>
+            </form>
+        </div>
+    {% endif %}
+
+    <script>
+        window.addEventListener('beforeunload', () => sessionStorage.setItem('scrollY', window.scrollY));
+        window.addEventListener('load', () => {
+            const y = sessionStorage.getItem('scrollY');
+            if (y) window.scrollTo(0, parseInt(y, 10));
+        });
+    </script>
+</body>
+</html>
