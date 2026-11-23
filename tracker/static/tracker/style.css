@@ -116,7 +116,6 @@ body {
     font-size: 14px;
 }
 
-/* Вход учителя и архив дня */
 .login-screen {
     min-height: 100vh;
     display: flex;
@@ -198,7 +197,6 @@ body {
     gap: 6px;
 }
 
-/* Планшет и ПК: 5 колонок x 6 рядов */
 .grid {
     flex: 1;
     display: grid;
@@ -313,7 +311,6 @@ body {
     margin-top: 2px;
 }
 
-/* Модальные окна */
 .modal {
     position: fixed;
     inset: 0;
@@ -385,7 +382,6 @@ body {
     gap: 8px;
 }
 
-/* Компактная адаптация под смартфон (до 768px) */
 @media (max-width: 768px) {
     .topbar {
         padding: 6px 8px;
